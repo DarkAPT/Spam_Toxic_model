@@ -1,0 +1,12 @@
+fastapi>=0.129.0
+matplotlib>=3.10.8
+nltk>=3.9.2
+numpy>=2.4.2
+pandas>=3.0.1
+pydantic>=2.12.5
+pymorphy3>=2.0.6
+scikit_learn>=1.8.0
+SQLAlchemy>=2.0.46
+torch>=2.10.0
+transformers>=5.2.0
+uvicorn>=0.41.0
