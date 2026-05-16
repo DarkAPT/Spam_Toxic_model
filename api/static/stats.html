@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статистика модерации</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body { 
+            background-color: #f8f9fa; 
+            padding-top: 20px; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .stats-card { 
+            margin-bottom: 20px; 
+            border-radius: 8px; 
+            border: 1px solid #dee2e6;
+        }
+        .card-header { 
+            font-weight: bold; 
+            border-radius: 8px 8px 0 0 !important;
+            background-color: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .banned-user { 
+            background-color: #fff5f5; 
+            border-left: 4px solid #dc3545; 
+        }
+        .warned-user { 
+            background-color: #fffcf5; 
+            border-left: 4px solid #ffc107; 
+        }
+        .active-user { 
+            background-color: #f5fff9; 
+            border-left: 4px solid #198754; 
+        }
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .error-alert {
+            display: none;
+            margin-top: 10px;
+        }
+        .user-id-badge {
+            font-family: 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #495057;
+        }
+        .section-title {
+            color: #495057;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .status-badge {
+            font-size: 0.85em;
+            padding: 4px 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="mb-2"> Статистика модерации</h1>
+                <p class="text-muted">Мониторинг пользователей и действий системы</p>
+            </div>
+        </div>
+        
+        <!-- Уведомления -->
+        <div id="globalAlert" class="alert alert-danger" role="alert" style="display: none;">
+            <span id="alertMessage"></span>
+            <button type="button" class="btn-close" onclick="hideAlert()" style="float: right;"></button>
+        </div>
+        
+        <!-- Поиск пользователя -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="stats-card card">
+                    <div class="card-header">
+                        Поиск пользователя по ID
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="input-group">
+                                    <input type="text" id="userSearch" class="form-control" placeholder="Введите ID пользователя">
+                                    <button class="btn btn-primary" onclick="searchUser()">
+                                        Найти
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="loading-spinner" id="userSearchLoading">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Загрузка...</span>
+                        </div>
+                        
+                        <div class="mt-3" id="userStatsResult"></div>
+                        
+                        <div class="alert alert-danger error-alert" id="userSearchError" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Статистика пользователей -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h3 class="section-title"> Статистика пользователей</h3>
+            </div>
+        </div>
+        
+        <!-- Топ нарушители -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="stats-card card">
+                    <div class="card-header">
+                         Топ нарушители
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Количество:</label>
+                            <select id="topViolatorsLimit" class="form-select" onchange="loadTopViolators()">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        
+                        <div class="loading-spinner" id="topViolatorsLoading">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Загрузка...</span>
+                        </div>
+                        
+                        <div id="topViolatorsList"></div>
+                        
+                        <div class="alert alert-danger error-alert" id="topViolatorsError" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Забаненные пользователи -->
+            <div class="col-md-6">
+                <div class="stats-card card">
+                    <div class="card-header">
+                        <i class="bi bi-ban"></i> Забаненные пользователи
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Количество:</label>
+                            <select id="bannedUsersLimit" class="form-select" onchange="loadBannedUsers()">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                        
+                        <div class="loading-spinner" id="bannedUsersLoading">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Загрузка...</span>
+                        </div>
+                        
+                        <div id="bannedUsersList"></div>
+                        
+                        <div class="alert alert-danger error-alert" id="bannedUsersError" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Действия модераторов -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h3 class="section-title"> Действия модераторов</h3>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Поиск по модератору -->
+            <div class="col-md-6 mb-4">
+                <div class="stats-card card">
+                    <div class="card-header">
+                         Поиск по модератору
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="input-group">
+                                <input type="text" id="moderatorSearch" class="form-control" placeholder="Введите ID модератора">
+                                <button class="btn btn-primary" onclick="searchModerator()">
+                                    <i class="bi bi-search"></i> Найти
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="loading-spinner" id="moderatorSearchLoading">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Загрузка...</span>
+                        </div>
+                        
+                        <div id="moderatorActionsResult"></div>
+                        
+                        <div class="alert alert-danger error-alert" id="moderatorSearchError" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Поиск по логу -->
+            <div class="col-md-6 mb-4">
+                <div class="stats-card card">
+                    <div class="card-header">
+                       Поиск по логу
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="input-group">
+                                <input type="number" id="logIdSearch" class="form-control" placeholder="Введите ID лога" min="1">
+                                <button class="btn btn-primary" onclick="searchLogActions()">
+                                    <i class="bi bi-search"></i> Найти
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="loading-spinner" id="logActionsLoading">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Загрузка...</span>
+                        </div>
+                        
+                        <div id="logActionsResult"></div>
+                        
+                        <div class="alert alert-danger error-alert" id="logActionsError" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Утилиты
+        function showAlert(message, type = 'danger') {
+            const alert = document.getElementById('globalAlert');
+            alert.className = `alert alert-${type}`;
+            document.getElementById('alertMessage').textContent = message;
+            alert.style.display = 'block';
+        }
+        
+        function hideAlert() {
+            document.getElementById('globalAlert').style.display = 'none';
+        }
+        
+        function showLoading(elementId) {
+            document.getElementById(elementId).style.display = 'block';
+        }
+        
+        function hideLoading(elementId) {
+            document.getElementById(elementId).style.display = 'none';
+        }
+        
+        function showError(elementId, message) {
+            const errorDiv = document.getElementById(elementId);
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        function hideError(elementId) {
+            document.getElementById(elementId).style.display = 'none';
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'Не указано';
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleString('ru-RU');
+            } catch (e) {
+                return dateString;
+            }
+        }
+        
+        // Загрузка при старте
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTopViolators();
+            loadBannedUsers();
+        });
+
+        // Поиск пользователя
+        async function searchUser() {
+            const userId = document.getElementById('userSearch').value.trim();
+            if (!userId) {
+                showAlert('Введите ID пользователя');
+                return;
+            }
+
+            showLoading('userSearchLoading');
+            hideError('userSearchError');
+            document.getElementById('userStatsResult').innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/stats/user/${userId}`);
+                if (!response.ok) {
+                    throw new Error(`Ошибка ${response.status}`);
+                }
+                const stats = await response.json();
+                
+                let html = `
+                    <div class="border rounded p-3 bg-light">
+                        <h5>Пользователь: <span class="user-id-badge">${stats.user_id || userId}</span></h5>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <p><strong>Статус:</strong> 
+                                    <span class="badge ${stats.status === 'banned' ? 'bg-danger' : stats.status === 'warned' ? 'bg-warning' : 'bg-success'} status-badge">
+                                        ${stats.status || 'active'}
+                                    </span>
+                                </p>
+                                <p><strong>Нарушений:</strong> ${stats.violations_count || 0}</p>
+                                <p><strong>Всего контента:</strong> ${stats.total_content || 0}</p>
+                                <p><strong>Последнее нарушение:</strong> ${formatDate(stats.last_violation)}</p>
+                            </div>
+                            <div class="col-md-6">
+                `;
+                
+                if (stats.stats_from_logs) {
+                    html += `
+                        <p><strong>Всего постов:</strong> ${stats.stats_from_logs.total_posts || 0}</p>
+                        <p><strong>Заблокировано:</strong> ${stats.stats_from_logs.blocked_posts || 0}</p>
+                        <p><strong>На проверке:</strong> ${stats.stats_from_logs.reviewed_posts || 0}</p>
+                        <p><strong>Разрешено:</strong> ${stats.stats_from_logs.allowed_posts || 0}</p>
+                        <p><strong>Процент нарушений:</strong> ${stats.violation_rate || 0}%</p>
+                    `;
+                } else {
+                    const violationRate = stats.total_content ? Math.round((stats.violations_count / stats.total_content) * 100) : 0;
+                    html += `
+                        <p><strong>Процент нарушений:</strong> ${violationRate}%</p>
+                    `;
+                }
+                
+                html += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('userStatsResult').innerHTML = html;
+                
+            } catch (error) {
+                showError('userSearchError', `Ошибка: ${error.message}`);
+            } finally {
+                hideLoading('userSearchLoading');
+            }
+        }
+
+        // Топ нарушители
+        async function loadTopViolators() {
+            const limit = document.getElementById('topViolatorsLimit').value;
+            
+            showLoading('topViolatorsLoading');
+            hideError('topViolatorsError');
+            
+            try {
+                const response = await fetch(`/api/stats/users/top-violators?limit=${limit}`);
+                if (!response.ok) {
+                    throw new Error(`Ошибка ${response.status}`);
+                }
+                const data = await response.json();
+                
+                let html = '';
+                
+                if (!data || !data.violators || data.violators.length === 0) {
+                    html = '<div class="alert alert-info">Нет данных о нарушителях</div>';
+                } else {
+                    html = '<table class="table table-sm">';
+                    html += '<thead><tr><th>Пользователь</th><th>Нарушения</th><th>Всего</th><th>%</th><th>Статус</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    data.violators.forEach(user => {
+                        const statusBadge = user.status === 'banned' ? 'bg-danger' : 
+                                           user.status === 'warned' ? 'bg-warning' : 'bg-success';
+                        const violationRate = user.violation_rate || 
+                                             (user.total_content ? Math.round((user.violations_count / user.total_content) * 100) : 0);
+                        
+                        html += `
+                            <tr>
+                                <td><span class="user-id-badge">${user.user_id}</span></td>
+                                <td><strong>${user.violations_count || 0}</strong></td>
+                                <td>${user.total_content || 0}</td>
+                                <td>${violationRate}%</td>
+                                <td><span class="badge ${statusBadge} status-badge">${user.status || 'active'}</span></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                }
+                
+                document.getElementById('topViolatorsList').innerHTML = html;
+                
+            } catch (error) {
+                showError('topViolatorsError', `Ошибка загрузки: ${error.message}`);
+            } finally {
+                hideLoading('topViolatorsLoading');
+            }
+        }
+
+        // Забаненные пользователи
+        async function loadBannedUsers() {
+            const limit = document.getElementById('bannedUsersLimit').value;
+            
+            showLoading('bannedUsersLoading');
+            hideError('bannedUsersError');
+            
+            try {
+                const response = await fetch(`/api/stats/users/banned?limit=${limit}`);
+                if (!response.ok) {
+                    throw new Error(`Ошибка ${response.status}`);
+                }
+                const users = await response.json();
+                
+                let html = '';
+                
+                if (!users || users.length === 0) {
+                    html = '<div class="alert alert-info">Нет забаненных пользователей</div>';
+                } else {
+                    html = '<div class="row">';
+                    users.forEach(user => {
+                        html += `
+                            <div class="col-12 mb-2">
+                                <div class="card banned-user">
+                                    <div class="card-body py-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="user-id-badge">${user.user_id}</span>
+                                            </div>
+                                            <div class="text-end">
+                                                <div>Нарушений: <strong>${user.violations_count || 0}</strong></div>
+                                                <div class="text-muted small">Забанен: ${formatDate(user.last_violation)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+                
+                document.getElementById('bannedUsersList').innerHTML = html;
+                
+            } catch (error) {
+                showError('bannedUsersError', `Ошибка загрузки: ${error.message}`);
+            } finally {
+                hideLoading('bannedUsersLoading');
+            }
+        }
+
+        // Поиск действий модератора
+        async function searchModerator() {
+            const moderatorId = document.getElementById('moderatorSearch').value.trim();
+            if (!moderatorId) {
+                showAlert('Введите ID модератора');
+                return;
+            }
+
+            showLoading('moderatorSearchLoading');
+            hideError('moderatorSearchError');
+            document.getElementById('moderatorActionsResult').innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/stats/moderation/actions/moderator/${moderatorId}`);
+                if (!response.ok) {
+                    throw new Error(`Ошибка ${response.status}`);
+                }
+                const data = await response.json();
+                
+                let html = '';
+                
+                if (!data) {
+                    html = '<div class="alert alert-info">Нет действий для этого модератора</div>';
+                } else {
+                    const actions = Array.isArray(data) ? data : (data.actions || []);
+                    
+                    html = `
+                        <div class="border rounded p-2 bg-light mb-2">
+                            <strong>Модератор:</strong> <span class="user-id-badge">${moderatorId}</span>
+                            <span class="ms-3"><strong>Всего действий:</strong> ${actions.length}</span>
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Время</th>
+                                        <th>Действие</th>
+                                        <th>Лог ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    actions.forEach(action => {
+                        const actionColor = action.action === 'block' ? 'danger' : 
+                                          action.action === 'allow' ? 'success' : 'info';
+                        
+                        html += `
+                            <tr>
+                                <td><small>${formatDate(action.timestamp)}</small></td>
+                                <td><span class="badge bg-${actionColor} status-badge">${action.action}</span></td>
+                                <td><code>#${action.log_id}</code></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table></div>';
+                }
+                
+                document.getElementById('moderatorActionsResult').innerHTML = html;
+                
+            } catch (error) {
+                showError('moderatorSearchError', `Ошибка: ${error.message}`);
+            } finally {
+                hideLoading('moderatorSearchLoading');
+            }
+        }
+
+        // Поиск действий по логу
+        async function searchLogActions() {
+            const logId = document.getElementById('logIdSearch').value.trim();
+            if (!logId || isNaN(logId)) {
+                showAlert('Введите корректный ID лога');
+                return;
+            }
+
+            showLoading('logActionsLoading');
+            hideError('logActionsError');
+            document.getElementById('logActionsResult').innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/stats/moderation/actions/log/${logId}`);
+                if (!response.ok) {
+                    throw new Error(`Ошибка ${response.status}`);
+                }
+                const actions = await response.json();
+                
+                let html = '';
+                
+                if (!actions || actions.length === 0) {
+                    html = '<div class="alert alert-info">Нет действий для этого лога</div>';
+                } else {
+                    html = `
+                        <div class="border rounded p-2 bg-light mb-2">
+                            <strong>Лог ID:</strong> <code>#${logId}</code>
+                            <span class="ms-3"><strong>Всего действий:</strong> ${actions.length}</span>
+                        </div>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Время</th>
+                                        <th>Модератор</th>
+                                        <th>Действие</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    actions.forEach(action => {
+                        const actionColor = action.action === 'block' ? 'danger' : 
+                                          action.action === 'allow' ? 'success' : 'info';
+                        
+                        html += `
+                            <tr>
+                                <td><small>${formatDate(action.timestamp)}</small></td>
+                                <td><code>${action.moderator_id || 'Аноним'}</code></td>
+                                <td><span class="badge bg-${actionColor} status-badge">${action.action}</span></td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table></div>';
+                }
+                
+                document.getElementById('logActionsResult').innerHTML = html;
+                
+            } catch (error) {
+                showError('logActionsError', `Ошибка: ${error.message}`);
+            } finally {
+                hideLoading('logActionsLoading');
+            }
+        }
+    </script>
+</body>
+</html>

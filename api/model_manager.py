@@ -2,6 +2,7 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import torch
 from utils import DataPreprocessor, DenseNN, FeatureExtractor
 from nltk import word_tokenize
+from config import settings
 
 
 class ModelManager():
@@ -18,14 +19,14 @@ class ModelManager():
         
     def load_toxic_model(self):
         """Загрузка модели классификации на токсичность"""
-        self.toxic_model = AutoModelForSequenceClassification.from_pretrained("../models/toxic")
-        self.toxic_tokenizer = AutoTokenizer.from_pretrained("../models/toxic")
+        self.toxic_model = AutoModelForSequenceClassification.from_pretrained(settings.toxic_model_path)
+        self.toxic_tokenizer = AutoTokenizer.from_pretrained(settings.toxic_model_path)
         self.toxic_model.to(self.device)
         self.toxic_model.eval()
         
     def load_spam_model(self):
         """Загрузка модели классификации на спам"""
-        checkpoint = torch.load("../models/spam/spam_model2.pth", map_location=self.device)
+        checkpoint = torch.load(settings.spam_model_path, map_location=self.device)
         self.spam_model = DenseNN(**checkpoint['model_config'])
         self.spam_model.load_state_dict(checkpoint['model_state_dict'])
         self.spam_model.to(self.device)

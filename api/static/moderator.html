@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель модератора</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 20px;
+        }
+        .message-card {
+            border-left: 4px solid #6c757d;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+        .message-card.block {
+            border-left-color: #dc3545;
+            background-color: #fff5f5;
+        }
+        .message-card.review {
+            border-left-color: #ffc107;
+            background-color: #fffcf5;
+        }
+        .message-card.allow {
+            border-left-color: #198754;
+            background-color: #f5fff9;
+        }
+        .badge-decision {
+            font-size: 0.8em;
+        }
+        .text-preview {
+            max-height: 100px;
+            overflow: hidden;
+            position: relative;
+        }
+        .text-preview.expanded {
+            max-height: none;
+        }
+        .expand-btn {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, transparent, white 30%);
+            padding-left: 30px;
+            color: #0d6efd;
+            cursor: pointer;
+            border: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        #filters {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .moderation-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .system-decision {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .moderator-override {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            border-left: 3px solid #0d6efd;
+        }
+        #authOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        #authOverlay.hidden {
+            display: none;
+        }
+        .auth-box {
+            max-width: 400px;
+            width: 90%;
+        }
+        .content-blur {
+            filter: blur(2px);
+            pointer-events: none;
+            user-select: none;
+            opacity: 0.6;
+        }
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .stats-btn {
+            margin-left: auto;
+        }
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+        .user-info-bar {
+            background-color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Оверлей для блокировки контента до входа -->
+    <div id="authOverlay" class="hidden">
+        <div class="card auth-box">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    Требуется авторизация
+                </h5>
+                <div class="mb-3">
+                    <label for="overlayUsername" class="form-label">Имя пользователя</label>
+                    <input type="text" class="form-control" id="overlayUsername" value="moderator">
+                </div>
+                <div class="mb-3">
+                    <label for="overlayPassword" class="form-label">Пароль</label>
+                    <input type="password" class="form-control" id="overlayPassword" value="moderator123">
+                </div>
+                <button class="btn btn-primary w-100" onclick="loginFromOverlay()">
+                    <i class="bi bi-box-arrow-in-right"></i> Войти
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1>Панель модератора</h1>
+                    </div>
+                    
+                    <!-- КНОПКА ДЛЯ ПЕРЕХОДА НА СТРАНИЦУ СТАТИСТИКИ -->
+                    <div class="header-buttons">
+                        <button class="btn btn-outline-info btn-lg stats-btn" onclick="goToStats()">
+                            <i class="bi bi-graph-up"></i> Статистика
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Секция аутентификации (скрытая, используется только для UI) -->
+        <div id="authSection" class="mb-4 d-none">
+            <div class="card" id="loginCard">
+                <div class="card-body">
+                    <h5 class="card-title">Вход для модератора</h5>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Имя пользователя</label>
+                        <input type="text" class="form-control" id="username" value="moderator">
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Пароль</label>
+                        <input type="password" class="form-control" id="password" value="moderator123">
+                    </div>
+                    <button class="btn btn-primary" onclick="login()">Войти</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Информационная панель пользователя (появляется после входа) -->
+        <div id="userInfoCard" class="user-info-bar d-none">
+            <div>
+                <strong>Вы вошли как:</strong> <span id="currentUsername"></span>
+            </div>
+            <div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="bi bi-box-arrow-right"></i> Выйти
+                </button>
+            </div>
+        </div>
+
+        <!-- Контент (будет заблокирован если не авторизован) -->
+        <div id="mainContent">
+            <!-- Фильтры -->
+            <div id="filters">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Решение системы:</label>
+                        <select id="decisionFilter" class="form-select">
+                            <option value="">Все</option>
+                            <option value="block">Заблокировано</option>
+                            <option value="review">На проверку</option>
+                            <option value="allow">Разрешено</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Статус проверки:</label>
+                        <select id="statusFilter" class="form-select">
+                            <option value="pending">Требуют проверки</option>
+                            <option value="all">Все записи</option>
+                            <option value="reviewed">Проверенные</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Лимит:</label>
+                        <select id="limitFilter" class="form-select">
+                            <option value="20">20 записей</option>
+                            <option value="50" selected>50 записей</option>
+                            <option value="100">100 записей</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div>
+                            <button id="applyFilters" class="btn btn-primary w-100">
+                                <i class="bi bi-funnel"></i> Применить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Список сообщений -->
+            <div id="messagesList" class="row mt-4">
+                <!-- Сообщения будут загружены здесь -->
+            </div>
+
+            <!-- Индикатор загрузки -->
+            <div id="loading" class="loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2">Загрузка сообщений...</p>
+            </div>
+
+            <!-- Кнопки пагинации -->
+            <div id="pagination" class="row mt-4">
+                <div class="col text-center">
+                    <button id="prevBtn" class="btn btn-outline-secondary" disabled>
+                        <i class="bi bi-arrow-left"></i> Назад
+                    </button>
+                    <span id="pageInfo" class="mx-3">Страница 1</span>
+                    <button id="nextBtn" class="btn btn-outline-secondary" disabled>
+                        Вперед <i class="bi bi-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для переопределения решения -->
+    <div class="modal fade" id="overrideModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Переопределение решения системы</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="overrideText">Вы собираетесь переопределить решение системы.</p>
+                    <p><strong>Решение системы:</strong> <span id="systemDecisionText"></span></p>
+                    <p><strong>Ваше решение:</strong> <span id="moderatorDecisionText"></span></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="confirmOverrideBtn">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Глобальные переменные
+    let currentPage = 0;
+    let currentLimit = 50;
+    let currentDecision = '';
+    let currentStatus = 'pending';
+    let currentItemId = null;
+    let currentItemDecision = null;
+    
+    // Аутентификация
+    let currentAuth = {
+        username: null,
+        password: null,
+        isAuthenticated: false
+    };
+
+    // ========== ФУНКЦИЯ ДЛЯ ПЕРЕХОДА НА СТАТИСТИКУ ==========
+    function goToStats() {
+        window.location.href = '/stats';
+    }
+
+    // ========== ФУНКЦИИ АУТЕНТИФИКАЦИИ ==========
+    
+    async function login(username, password) {
+        try {
+            const authHeader = 'Basic ' + btoa(username + ':' + password);
+            
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': authHeader
+                },
+                body: JSON.stringify({ username, password })
+            });
+            
+            if (response.ok) {
+                currentAuth = {
+                    username: username,
+                    password: password,
+                    isAuthenticated: true
+                };
+                
+                localStorage.setItem('moderator_auth', JSON.stringify({
+                    username: username,
+                    password: password
+                }));
+                
+                // Скрываем оверлей
+                document.getElementById('authOverlay').classList.add('hidden');
+                
+                // Показываем информацию о пользователе
+                document.getElementById('currentUsername').textContent = username;
+                document.getElementById('userInfoCard').classList.remove('d-none');
+                
+                // Загружаем сообщения
+                loadMessages();
+                
+                return true;
+            } else {
+                throw new Error('Неверные учетные данные');
+            }
+            
+        } catch (error) {
+            alert('Ошибка входа: ' + error.message);
+            return false;
+        }
+    }
+
+    function loginFromOverlay() {
+        const username = document.getElementById('overlayUsername').value;
+        const password = document.getElementById('overlayPassword').value;
+        login(username, password);
+    }
+    
+    function logout() {
+        currentAuth = { username: null, password: null, isAuthenticated: false };
+        localStorage.removeItem('moderator_auth');
+        
+        // Показываем оверлей
+        document.getElementById('authOverlay').classList.remove('hidden');
+        document.getElementById('userInfoCard').classList.add('d-none');
+        
+        // Очищаем список сообщений
+        document.getElementById('messagesList').innerHTML = '';
+        
+        // Сбрасываем фильтры
+        currentPage = 0;
+        currentDecision = '';
+        currentStatus = 'pending';
+        
+        showAlert('info', 'Вы вышли из системы');
+    }
+    
+    function getAuthHeaders() {
+        if (currentAuth.isAuthenticated) {
+            return {
+                'Authorization': 'Basic ' + btoa(currentAuth.username + ':' + currentAuth.password),
+                'Content-Type': 'application/json'
+            };
+        }
+        return {
+            'Content-Type': 'application/json'
+        };
+    }
+
+    // ========== ФУНКЦИИ МОДЕРАЦИИ ==========
+    
+    async function loadMessages() {
+        // Если не авторизован - не загружаем
+        if (!currentAuth.isAuthenticated) {
+            return;
+        }
+
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('messagesList').innerHTML = '';
+        
+        try {
+            const offset = currentPage * currentLimit;
+            let url = `/api/moderation/pending?limit=${currentLimit}&offset=${offset}`;
+            
+            if (currentDecision) {
+                url += `&decision=${currentDecision}`;
+            }
+            
+            if (currentStatus === 'reviewed') {
+                url += `&needs_review=false`;
+            } else if (currentStatus === 'all') {
+                url += `&needs_review=false`;
+            }
+            
+            const response = await fetch(url);
+            
+            if (response.status === 401) {
+                // Если получили 401 - разлогиниваем
+                logout();
+                showAlert('warning', 'Сессия истекла. Пожалуйста, войдите снова.');
+                return;
+            }
+            
+            const messages = await response.json();
+            
+            displayMessages(messages);
+            updatePagination(messages.length);
+            
+        } catch (error) {
+            console.error('Error loading messages:', error);
+            document.getElementById('messagesList').innerHTML = `
+                <div class="col">
+                    <div class="alert alert-danger">
+                        Ошибка загрузки сообщений: ${error.message}
+                    </div>
+                </div>
+            `;
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    function displayMessages(messages) {
+        const container = document.getElementById('messagesList');
+        
+        if (messages.length === 0) {
+            container.innerHTML = `
+                <div class="col">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Нет сообщений для отображения
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        
+        messages.forEach(message => {
+            const decisionClass = message.final_decision;
+            const decisionText = {
+                'block': 'Заблокировано',
+                'review': 'На проверке',
+                'allow': 'Разрешено'
+            }[message.final_decision] || message.final_decision;
+            
+            const decisionColor = {
+                'block': 'danger',
+                'review': 'warning',
+                'allow': 'success'
+            }[message.final_decision] || 'secondary';
+            
+            const toxicBadge = message.toxic_model_res ? 
+                '<span class="badge bg-danger">Токсичное</span>' : 
+                '<span class="badge bg-secondary">Нормальное</span>';
+            
+            const spamBadge = message.spam_model_res ? 
+                '<span class="badge bg-warning text-dark">Спам</span>' : 
+                '<span class="badge bg-secondary">Не спам</span>';
+            
+            const reviewedBadge = message.moderator_conf ? 
+                '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Проверено</span>' : 
+                '<span class="badge bg-secondary"><i class="bi bi-clock"></i> Ожидает</span>';
+            
+            const userId = message.user_id || 'Не указан';
+            const date = new Date(message.timestamp).toLocaleString('ru-RU');
+            
+            html += `
+            <div class="col-12">
+                <div class="message-card card ${decisionClass}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="badge bg-${decisionColor} badge-decision">${decisionText}</span>
+                                ${toxicBadge}
+                                ${spamBadge}
+                                ${reviewedBadge}
+                                <span class="badge bg-info">Уверенность: ${(message.confidence * 100).toFixed(1)}%</span>
+                            </div>
+                            <small class="text-muted">ID: ${message.id}</small>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">
+                                Пользователь: ${userId} |
+                                ${date}
+                            </small>
+                        </div>
+                        
+                        <div class="text-preview mb-3" id="text-${message.id}">
+                            <p>${escapeHtml(message.text)}</p>
+                            ${message.text.length > 300 ? 
+                                `<button class="expand-btn" onclick="toggleExpand(${message.id})">
+                                    <i class="bi bi-chevron-down"></i> Показать больше
+                                </button>` : ''
+                            }
+                        </div>
+                        
+                        <div class="system-decision">
+                            <strong>Решение системы:</strong> ${decisionText}
+                        </div>
+                        
+                        ${!message.moderator_conf ? `
+                            <div class="moderation-actions">
+                                <button class="btn btn-success btn-sm" onclick="prepareOverride(${message.id}, 'confirm')">
+                                    <i class="bi bi-check-lg"></i> Подтвердить решение
+                                </button>
+                                
+                                <button class="btn btn-danger btn-sm" onclick="prepareOverride(${message.id}, 'block')">
+                                    <i class="bi bi-ban"></i> Заблокировать
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="prepareOverride(${message.id}, 'allow')">
+                                    <i class="bi bi-check-circle"></i> Разрешить
+                                </button>
+                                
+                            </div>
+                            ` : `
+                            <div class="moderator-override">
+                                <i class="bi bi-shield-check"></i> Проверено модератором
+                                ${!message.correct_label ? `<br><small class="text-muted">Решение системы переопределено</small>` : ''}
+                            </div>
+                            `}
+                    </div>
+                </div>
+            </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+    }
+
+    async function moderateMessage(itemId, moderatorDecision) {
+        try {
+            const response = await fetch(`/api/moderation/${itemId}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    decision: moderatorDecision
+                })
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            showAlert('success', result.message);
+            
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('overrideModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Обновляем список
+            loadMessages();
+            
+        } catch (error) {
+            console.error('Error updating moderation:', error);
+            
+            // Если ошибка 401 - разлогиниваем
+            if (error.message.includes('401')) {
+                logout();
+                showAlert('warning', 'Сессия истекла. Пожалуйста, войдите снова.');
+            } else {
+                showAlert('danger', `Ошибка: ${error.message}`);
+            }
+        }
+    }
+
+    function prepareOverride(itemId, moderatorDecision) {
+        currentItemId = itemId;
+        currentItemDecision = moderatorDecision;
+        
+        // Находим элемент сообщения
+        const messageCard = document.querySelector(`[id^="text-${itemId}"]`).closest('.message-card');
+        const systemDecision = messageCard.querySelector('.badge-decision').textContent;
+        
+        const decisionTexts = {
+            'block': 'Заблокировать',
+            'allow': 'Разрешить',
+            'confirm': 'Подтвердить решение системы'
+        };
+        
+        document.getElementById('systemDecisionText').textContent = systemDecision;
+        document.getElementById('moderatorDecisionText').textContent = decisionTexts[moderatorDecision];
+        
+        if (moderatorDecision === 'confirm') {
+            document.getElementById('overrideText').innerHTML = 
+                `<strong>Вы подтверждаете решение системы "${systemDecision}".</strong><br>
+                Система считает это решение верным.`;
+        } else {
+            const systemDecisionLower = systemDecision.toLowerCase();
+            const isOverriding = systemDecisionLower.includes('блокировано') && moderatorDecision === 'allow' ||
+                                systemDecisionLower.includes('разрешено') && moderatorDecision === 'block';
+            
+            if (isOverriding) {
+                document.getElementById('overrideText').innerHTML = 
+                    `<strong>Вы переопределяете решение системы!</strong><br>
+                    Система решила: <span class="text-danger">"${systemDecision}"</span><br>
+                    Вы хотите: <span class="text-success">"${decisionTexts[moderatorDecision]}"</span>`;
+            } else {
+                document.getElementById('overrideText').innerHTML = 
+                    `<strong>Вы соглашаетесь с решением системы.</strong><br>
+                    Решение системы: "${systemDecision}"<br>
+                    Ваше действие: "${decisionTexts[moderatorDecision]}"`;
+            }
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('overrideModal'));
+        modal.show();
+    }
+
+    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+    
+    function toggleExpand(id) {
+        const element = document.getElementById(`text-${id}`);
+        const button = element.querySelector('.expand-btn');
+        
+        element.classList.toggle('expanded');
+        
+        if (element.classList.contains('expanded')) {
+            button.innerHTML = '<i class="bi bi-chevron-up"></i> Показать меньше';
+        } else {
+            button.innerHTML = '<i class="bi bi-chevron-down"></i> Показать больше';
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showAlert(type, message) {
+        // Удаляем старые алерты
+        const oldAlerts = document.querySelectorAll('.alert.position-fixed');
+        oldAlerts.forEach(alert => alert.remove());
+        
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alert.style.top = '20px';
+        alert.style.right = '20px';
+        alert.style.zIndex = '2000';
+        alert.style.minWidth = '300px';
+        alert.style.maxWidth = '400px';
+        
+        alert.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : type === 'info' ? 'info-circle' : 'x-circle'} me-2"></i>
+                <span>${message}</span>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(alert);
+        
+        setTimeout(() => {
+            if (alert.parentNode) {
+                alert.remove();
+            }
+        }, 5000);
+    }
+
+    function updatePagination(itemsCount) {
+        const hasMore = itemsCount === currentLimit;
+        document.getElementById('prevBtn').disabled = currentPage === 0;
+        document.getElementById('nextBtn').disabled = !hasMore;
+        document.getElementById('pageInfo').textContent = `Страница ${currentPage + 1}`;
+    }
+
+    // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
+    
+    document.getElementById('applyFilters').addEventListener('click', () => {
+        currentDecision = document.getElementById('decisionFilter').value;
+        currentStatus = document.getElementById('statusFilter').value;
+        currentLimit = parseInt(document.getElementById('limitFilter').value);
+        currentPage = 0;
+        
+        loadMessages();
+    });
+
+    document.getElementById('prevBtn').addEventListener('click', () => {
+        if (currentPage > 0) {
+            currentPage--;
+            loadMessages();
+        }
+    });
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+        currentPage++;
+        loadMessages();
+    });
+
+    document.getElementById('confirmOverrideBtn').addEventListener('click', () => {
+        moderateMessage(currentItemId, currentItemDecision);
+    });
+
+    // Добавляем обработчик Enter для полей ввода
+    document.getElementById('overlayPassword').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            loginFromOverlay();
+        }
+    });
+
+    // ========== ЗАГРУЗКА ПРИ СТАРТЕ ==========
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Восстанавливаем аутентификацию
+        const savedAuth = localStorage.getItem('moderator_auth');
+        if (savedAuth) {
+            const auth = JSON.parse(savedAuth);
+            document.getElementById('overlayUsername').value = auth.username;
+            document.getElementById('overlayPassword').value = auth.password;
+            
+            // Пытаемся автоматически войти
+            login(auth.username, auth.password);
+        } else {
+            // Показываем оверлей
+            document.getElementById('authOverlay').classList.remove('hidden');
+        }
+    });
+</script>
+</body>
+</html>
