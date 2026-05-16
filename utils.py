@@ -11,6 +11,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 import torch
 import torch.nn as nn
+import nltk
 
 
 class DataPreprocessor:
@@ -18,8 +19,8 @@ class DataPreprocessor:
         try:
             self.russian_stopwords = set(stopwords.words("russian"))
         except LookupError:
-            print("NLTK stopwords not found. Please run: nltk.download('stopwords')")
-            self.russian_stopwords = set()
+            nltk.download('stopwords')
+            self.russian_stopwords = set(stopwords.words("russian"))
         
         self.morph = MorphAnalyzer()
 
